@@ -8,9 +8,9 @@ import java.time.Duration
 name = "扩展功能: 积分榜"
 //建议只修改下面一段,其他地方代码请勿乱动
 val msg = """
-[magenta]欢迎[goldenrod]{player.name}[magenta]来到WZ服务器[red](请在语言文件中修改)
+[magenta]欢迎[goldenrod]{player.name}[magenta]来到[accent]New Horizon Mod官服
 [violet]当前地图为: [yellow][{map.id}][orange]{map.name}
-[violet]本局游戏时间: [orange]{state.gameTime:分钟}
+[violet]本局游戏时间: []{state.gameTime:分钟}
 {scoreBroad.ext.*:${"\n"}}
 [royal]输入/broad可以开关该显示
 """.trimIndent()
