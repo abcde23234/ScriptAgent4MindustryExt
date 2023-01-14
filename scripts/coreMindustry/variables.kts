@@ -3,8 +3,8 @@ package coreMindustry
 
 import cf.wayzer.placehold.DynamicVar
 import mindustry.core.Version
+import mindustry.ctype.UnlockableContent
 import mindustry.game.Team
-import mindustry.gen.Groups
 import mindustry.gen.Unit
 import mindustry.maps.Map
 import mindustry.net.Administration
@@ -53,9 +53,12 @@ registerVarForType<Player>().apply {
     registerChild("team", "当前队伍", DynamicVar.obj { it.team() })
     registerChild("unit", "获取玩家Unit", DynamicVar.obj { it.unit() })
     registerChild("info", "PlayerInfo", DynamicVar.obj { netServer.admins.getInfoOptional(it.uuid()) })
+    registerToString("玩家名(name)", DynamicVar.obj {
+        resolveVar(it, "name")?.toString()
+    })
 }
 registerVarForType<Administration.PlayerInfo>().apply {
-    registerChild("name", "名字", DynamicVar.obj { it.lastName })
+    registerChild("name", "名字(可能影响后文颜色)", DynamicVar.obj { it.lastName })
     registerChild("uuid", "uuid", DynamicVar.obj { it.id })
     registerChild("lastIP", "最后一次的登录IP", DynamicVar.obj { it.lastIP })
     registerChild("lastBan", "最后一次被ban时间", DynamicVar.obj { it.lastKicked.let(::Date) })
@@ -63,14 +66,22 @@ registerVarForType<Administration.PlayerInfo>().apply {
 
 registerVar("team", "当前玩家的队伍", DynamicVar.v { getVar("player.team") })
 registerVarForType<Team>().apply {
-    registerChild("name", "队伍名", DynamicVar.obj { it.name })
+    registerChild("name", "队伍名", DynamicVar.obj { it.localized() })
     registerChild("color", "队伍颜色", DynamicVar.obj { "[#${it.color}]" })
-    registerChild("colorizeName", "彩色队伍名", DynamicVar.obj {
-        resolveVar(it, "color")?.toString() + resolveVar(it, "name")?.toString()
+    registerChild("colorizeName", "彩色队伍名(影响后文颜色)", DynamicVar.obj {
+        resolveVar(it, "color")!!.toString() + resolveVar(it, "name")!!.toString()
+    })
+    registerToString("彩色队伍名(不影响后文颜色)", DynamicVar.obj {
+        resolveVar(it, "colorizeName")!!.toString() + "[]"
     })
 }
 
 //Unit
+registerVarForType<UnlockableContent>().apply {
+    registerChild("emoji", "图标", DynamicVar.obj { it.emoji() })
+    registerChild("name", "名字", DynamicVar.obj { it.localizedName })
+    registerToString("图标+名字", DynamicVar.obj { it.emoji() + it.localizedName })
+}
 registerVarForType<Unit>().apply {
     registerChild("x", "坐标x", DynamicVar.obj { it.tileX() })
     registerChild("y", "坐标y", DynamicVar.obj { it.tileY() })

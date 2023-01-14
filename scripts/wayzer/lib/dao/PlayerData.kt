@@ -68,7 +68,14 @@ class PlayerData(id: EntityID<String>) : Entity<String>(id) {
 
     fun secure(player: Player): Boolean {
         if (!Setting.checkUsid || profileId == null) return true
-        return Usid.get(this, player) == player.usid()
+        val secure = Usid.get(this, player)
+        if (secure == null) {
+            transaction {
+                Usid.put(this@PlayerData, player.usid())
+            }
+            return true
+        }
+        return secure == player.usid()
     }
 
     fun secureProfile(player: Player) = if (secure(player)) profile else null
@@ -91,11 +98,12 @@ class PlayerData(id: EntityID<String>) : Entity<String>(id) {
         val usid = varchar("sid", 12)
 
         private val cache = CacheBuilder.newBuilder()
-            .expireAfterAccess(Duration.ofMinutes(10))
+            .expireAfterAccess(Duration.ofMinutes(60))
             .build<String, String>()//uuid -> usid
 
         @NeedTransaction
         fun put(user: PlayerData, usid: String) {
+            if (!Setting.checkUsid) return
             if (!Setting.tempServer) {
                 val found = Usid.update({ (Usid.user eq user.id) and (Usid.server eq Setting.serverId) }) {
                     it[Usid.usid] = usid
@@ -127,15 +135,19 @@ class PlayerData(id: EntityID<String>) : Entity<String>(id) {
     }
 
     companion object : EntityClass<String, PlayerData>(T) {
+        private val realCache = mutableMapOf<String, PlayerData>()
         private val cache = CacheBuilder.newBuilder()
             .expireAfterAccess(Duration.ofMinutes(1))
-            .removalListener<String, PlayerData> { (k, v) ->
-                if (v!!.player != null)
-                    reCache(k!!, v)
+            .removalListener<String, PlayerData> {
+                if (it.value!!.player == null)
+                    realCache.remove(it.key)
             }
             .build<String, PlayerData>()
 
-        private fun reCache(k: String, v: PlayerData): Unit = cache.put(k, v)
+        private fun putCache(id: String, v: PlayerData) {
+            realCache[id] = v
+            cache.put(id, v)
+        }
 
         @NeedTransaction
         fun findOrCreate(uuid: String, address: String, name: String) =
@@ -145,14 +157,15 @@ class PlayerData(id: EntityID<String>) : Entity<String>(id) {
                     lastIp = address
                     lastName = Strings.stripColors(name)
                 }.also { it.flush() }
-            }.also { cache.put(uuid, it) }
+            }.also { putCache(uuid, it) }
 
         /**Must call after findOrCreate or null*/
         override fun findById(id: EntityID<String>): PlayerData? = cache.getIfPresent(id.value)
+            ?: realCache[id.value]?.also { cache.put(id.value, it) }
 
         @NeedTransaction
         fun findByIdWithTransaction(id: String) = findById(id) ?: transaction {
             super.findById(EntityID(id, T))
-        }?.also { cache.put(id, it) }
+        }?.also { putCache(id, it) }
     }
 }

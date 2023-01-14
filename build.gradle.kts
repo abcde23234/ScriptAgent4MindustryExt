@@ -9,6 +9,7 @@ plugins {
 
 group = "cf.wayzer"
 version = "v3.x.x" //采用3位版本号v1.2.3 1为大版本 2为插件版本 3为脚本版本
+val loaderVersion get() = version.toString().substringBeforeLast('.')
 
 if (projectDir.resolve(".git").isDirectory)
     gitVersioning.apply(closureOf<me.qoomon.gradle.gitversioning.GitVersioningPluginConfig> {
@@ -33,39 +34,55 @@ sourceSets {
 }
 
 repositories {
+//    mavenLocal()
     mavenCentral()
     maven(url = "https://www.jitpack.io") {
         content {
             excludeModule("cf.wayzer", "ScriptAgent")
         }
     }
-    maven("https://maven.tinylake.tk/")//ScriptAgent
+
+    if (System.getProperty("user.timezone") != "Asia/Shanghai")//ScriptAgent
+        maven("https://maven.tinylake.tk/")
+    else {
+        maven {
+            url = uri("https://packages.aliyun.com/maven/repository/2102713-release-0NVzQH/")
+            credentials {
+                username = "609f6fb4aa6381038e01fdee"
+                password = "h(7NRbbUWYrN"
+            }
+        }
+    }
 }
 
 dependencies {
-    val libraryVersion = "1.9.1.6"
-    val mindustryVersion = "v139"
+    val libraryVersion = "1.10.1.1"
+    val mindustryVersion = "v140.101"
     val pluginImplementation by configurations
     pluginImplementation("cf.wayzer:ScriptAgent:$libraryVersion")
-    pluginImplementation("cf.wayzer:LibraryManager:1.4.1")
-    pluginImplementation("com.github.Anuken.Mindustry:core:$mindustryVersion")
+    pluginImplementation("cf.wayzer:LibraryManager:1.6")
+//    pluginImplementation("com.github.Anuken.Mindustry:core:$mindustryVersion")
+    pluginImplementation("com.github.TinyLake.MindustryX:core:$mindustryVersion")
 
+    implementation(sourceSets.getByName("plugin").output)
     implementation(kotlin("script-runtime"))
     implementation("cf.wayzer:ScriptAgent:$libraryVersion")
     kotlinScriptDef("cf.wayzer:ScriptAgent:$libraryVersion")
 
     //coreLibrary
-    implementation("cf.wayzer:PlaceHoldLib:5.2")
+    implementation("cf.wayzer:PlaceHoldLib:6.0")
     implementation("io.github.config4k:config4k:0.4.1")
     //coreLib/DBApi
     val exposedVersion = "0.40.1"
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-dao:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-java-time:$exposedVersion")
+    //coreLib/redisApi
+    implementation("redis.clients:jedis:4.3.1")
 
     //coreMindustry
-    implementation("com.github.Anuken.Mindustry:core:$mindustryVersion")
-//    implementation("com.github.TinyLake.MindustryX:core:v138.001")
+//    implementation("com.github.Anuken.Mindustry:core:$mindustryVersion")
+    implementation("com.github.TinyLake.MindustryX:core:$mindustryVersion")
     //coreMindustry/console
     implementation("org.jline:jline-terminal:3.21.0")
     implementation("org.jline:jline-reader:3.21.0")
@@ -83,15 +100,15 @@ tasks {
         kotlinOptions.jvmTarget = "1.8"
         kotlinOptions.freeCompilerArgs = listOf(
             "-Xinline-classes",
-            "-Xopt-in=kotlin.RequiresOptIn",
+            "-opt-in=kotlin.RequiresOptIn",
             "-Xnullability-annotations=@arc.util:strict"
         )
     }
     withType<ProcessResources> {
-        inputs.property("version", rootProject.version)
+        inputs.property("version", loaderVersion)
         filter(
             filterType = org.apache.tools.ant.filters.ReplaceTokens::class,
-            properties = mapOf("tokens" to mapOf("version" to rootProject.version))
+            properties = mapOf("tokens" to mapOf("version" to loaderVersion))
         )
     }
     named<Delete>("clean") {
@@ -116,7 +133,7 @@ tasks {
         archiveVersion.set(rootProject.version.toString().substringBeforeLast('.'))
         configurations = listOf(project.configurations.getByName("pluginCompileClasspath"))
         manifest.attributes(
-            "Main-Class" to "cf.wayzer.scriptAgent.GenerateMain"
+            "Main-Class" to "cf.wayzer.scriptAgent.mindustry.GenerateMain"
         )
         dependencies {
             include(dependency("cf.wayzer:ScriptAgent"))
@@ -133,9 +150,6 @@ tasks {
         outputs.files("scripts/cache")
 
         classpath(buildPlugin.outputs.files)
-        mainClass.set("cf.wayzer.scriptAgent.GenerateMain")
-        if (javaVersion >= JavaVersion.VERSION_16)
-            jvmArgs("--add-opens java.base/java.net=ALL-UNNAMED")
     }
     val precompileZip = create<Zip>("precompileZip") {
         dependsOn(precompile)

@@ -4,7 +4,6 @@ import arc.util.Strings
 import cf.wayzer.placehold.DynamicVar
 import coreLibrary.DBApi
 import coreLibrary.lib.util.loop
-import mindustry.gen.Groups
 import mindustry.net.Administration
 import mindustry.net.Packets
 import mindustry.net.Packets.ConnectPacket
@@ -20,8 +19,10 @@ name = "基础: 玩家数据"
 registerVarForType<Player>().apply {
     registerChild("ext", "模块扩展数据", DynamicVar.obj { PlayerData[it.uuid()] })
     registerChild("profile", "统一账号信息(可能不存在)", DynamicVar.obj { PlayerData[it.uuid()].profile })
-    registerChild("prefix", "名字前缀,可通过prefix.xxx变量注册", DynamicVar.obj { resolveVar(it, "prefix.*.toString", "") })
-    registerChild("suffix", "名字后缀,可通过suffix.xxx变量注册", DynamicVar.obj { resolveVar(it, "suffix.*.toString", "") })
+    registerChild(
+        "prefix", "名字前缀,可通过prefix.xxx变量注册", DynamicVar.obj { resolveVar(it, "prefix.*.toString", "") })
+    registerChild(
+        "suffix", "名字后缀,可通过suffix.xxx变量注册", DynamicVar.obj { resolveVar(it, "suffix.*.toString", "") })
 }
 
 registerVarForType<Administration.PlayerInfo>().apply {
@@ -62,15 +63,17 @@ listenPacket2ServerAsync<ConnectPacket> { con, packet ->
         return@listenPacket2ServerAsync false
     }
     val old = transaction { PlayerData.findById(packet.uuid) }
-    val event = ConnectAsyncEvent(con, packet, old).emitAsync {
-        if (it != Event.Priority.NormalE) return@emitAsync
-        withContext(Dispatchers.IO) {
-            data = transaction {
-                PlayerData.findOrCreate(packet.uuid, con.address, packet.name).apply {
-                    refresh(flush = true)
-                    profile//warm up cache
+    val event = ConnectAsyncEvent(con, packet, old).apply {
+        emitAsync {
+            data =
+                withContext(Dispatchers.IO) {
+                    transaction {
+                        PlayerData.findOrCreate(packet.uuid, con.address, packet.name).apply {
+                            refresh(flush = true)
+                            profile//warm up cache
+                        }
+                    }
                 }
-            }
         }
     }
     if (event.cancelled) con.kick("[red]拒绝入服: ${event.reason}")
@@ -97,11 +100,11 @@ listen<EventType.PlayerLeave> {
 }
 
 onEnable {
-    launch {
+    launch(Dispatchers.game) {
         DBApi.DB.awaitInit()
-        TransactionHelper.withAsyncFlush(this) {
+        transaction {
             Groups.player.toList().forEach {
-                PlayerData[it.uuid()].onJoin(it)
+                PlayerData.findByIdWithTransaction(it.uuid())?.onJoin(it)
             }
         }
         loop(Dispatchers.IO) {
